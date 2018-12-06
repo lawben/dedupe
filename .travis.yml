@@ -1,13 +1,51 @@
 language: java
-install: true
+install: '[[ -v SONAR_TOKEN ]] && [[ -v OSSRH_USERNAME ]] && [[ -v OSSRH_PASSWORD ]] || (echo "Not all travis secrets are set" && exit 1)'
 addons:
   sonarcloud:
     organization: bakdata
     token: $SONAR_TOKEN
 jdk:
 - oraclejdk11
-script:
-- "./gradlew sonarqube"
+stages:
+- name: build
+- name: uploadSnapshot
+  if: branch = master AND tag IS blank
+- name: makeRelease
+  if: branch = master AND (env("TRAVIS_COMMIT_MESSAGE") =~ ^\d+\.\d+\.\d+$ OR env("TRAVIS_COMMIT_MESSAGE") IN (bugfix, minor, major))
+- name: uploadRelease
+  if: branch = master AND tag =~ ^\d+\.\d+\.\d+$
+jobs:
+  include:
+  - stage: build
+    script: ./gradlew sonarqube
+  - stage: uploadSnapshot
+    script: ./gradlew uploadArchives -x test -DossrhUsername=$OSSRH_USERNAME -DossrhPassword=$OSSRH_PASSWORD
+  - stage: makeRelease
+    script:
+    - git checkout HEAD~1
+    - >
+        version=`grep "version=" gradle.properties | cut -d'=' -f2`
+        case "${TRAVIS_COMMIT_MESSAGE}" in
+          bugfix)
+            version=${version%-*}
+            ;;
+          minor)
+            version=${version%%.*}.$((`echo $version | cut -d'.' -f 2`+1)).0
+            ;;
+          major)
+            version=$((${version%%.*}+1)).0.0
+            ;;
+          [0-9][0-9]?.[0-9][0-9]?.[0-9][0-9]?)
+            version=${TRAVIS_COMMIT_MESSAGE}
+            ;;
+          *)
+            echo "Got unsupported release message ${TRAVIS_COMMIT_MESSAGE}, use bugfix|minor|major|<version>" >&2
+            exit 1
+            ;;
+        esac
+        ./gradlew release -Prelease.useAutomaticVersion=true -Prelease.releaseVersion=${version}
+  - stage: uploadRelease
+    script: ./gradlew uploadArchives closeAndReleaseRepository -x test -DossrhUsername=$OSSRH_USERNAME -DossrhPassword=$OSSRH_PASSWORD
 cache:
   directories:
   - "$HOME/.m2/repository"

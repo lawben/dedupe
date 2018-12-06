@@ -38,12 +38,12 @@ import java.util.function.BiPredicate;
 
 /**
  * Successively applies a list of rules to the record and returns the respective {@link Classification} with the following cases:
- * <li>
- * <ul>If any rule classifies the pair unambiguously as {@link Classification.ClassificationResult#DUPLICATE} or {@link Classification.ClassificationResult#NON_DUPLICATE}, the classification is immediately returned.</ul>
- * <ul>If some rule classifies the pair as {@link Classification.ClassificationResult#POSSIBLE_DUPLICATE}, the remaining rules with be evaluated to see if an unambiguous classification will be reached, in which case that classification is returned. If the results are only ambiguous, the last {@code POSSIBLE_DUPLICATE} classification will be returned.</ul>
- * <ul>If no rule can be applied, the result is {@link #UNKNOWN}.</ul>
- * </li>
- * <p>
+ * <ul>
+ * <li>If any rule classifies the pair unambiguously as {@link Classification.ClassificationResult#DUPLICATE} or {@link Classification.ClassificationResult#NON_DUPLICATE}, the classification is immediately returned.</li>
+ * <li>If some rule classifies the pair as {@link Classification.ClassificationResult#POSSIBLE_DUPLICATE}, the remaining rules with be evaluated to see if an unambiguous classification will be reached, in which case that classification is returned. If the results are only ambiguous, the last {@code POSSIBLE_DUPLICATE} classification will be returned.</li>
+ * <li>If no rule can be applied, the result is {@link #UNKNOWN}.</li>
+ * </ul>
+ * <br>
  * The {@code Classification} will contain a description naming the triggered rule and converts the rule score into a confidence score.
  *
  * @param <T>

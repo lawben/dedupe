@@ -7,24 +7,25 @@ buildscript {
         classpath 'io.franzbecker:gradle-lombok:1.14'
         classpath 'net.researchgate:gradle-release:2.6.0'
         classpath 'org.sonarsource.scanner.gradle:sonarqube-gradle-plugin:2.6.2'
+        classpath 'io.codearte.gradle.nexus:gradle-nexus-staging-plugin:0.12.0'
     }
 }
 
 apply plugin: 'org.sonarqube'
+apply plugin: 'net.researchgate.release'
+if (System.getenv("CI")) {
+    apply plugin: 'io.codearte.nexus-staging'
+}
 
-// def allTestCoverageFile = "$buildDir/jacoco/allTestCoverage.exec"
-allprojects {
+allprojects { subproject ->
     apply plugin: 'java-library'
     apply plugin: 'io.franzbecker.gradle-lombok'
     apply plugin: 'jacoco'
 
+    group = 'com.bakdata.dedupe'
     lombok {
         version = '1.18.4'
         sha256 = ""
-    }
-
-    jacoco {
-        toolVersion = "0.8.2"
     }
 
     // build fails for java 11, let's wait for a newer lombok version
@@ -52,6 +53,10 @@ allprojects {
         systemProperty 'java.util.logging.config.file', 'src/test/resources/logging.properties'
     }
 
+    jacoco {
+        toolVersion = "0.8.2"
+    }
+
     sonarqube {
         properties {
             property "sonar.projectName", "Dedupe"
@@ -63,6 +68,74 @@ allprojects {
     jacocoTestReport.dependsOn(test)
 }
 
+subprojects {
+    apply plugin: 'maven'
+    apply plugin: 'signing'
+
+    uploadArchives {
+        repositories {
+            mavenDeployer {
+                beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
+
+                repository(url: "https://oss.sonatype.org/service/local/staging/deploy/maven2/") {
+                    authentication(userName: ossrhUsername, password: ossrhPassword)
+                }
+
+                snapshotRepository(url: "https://oss.sonatype.org/content/repositories/snapshots/") {
+                    authentication(userName: ossrhUsername, password: ossrhPassword)
+                }
+
+                pom.project {
+//                    name "${subproject.groupId}:${subproject.artifactId}"
+                    packaging 'jar'
+                    description 'Java DSL for (online) deduplication'
+                    url 'http://github.com/bakdata/dedupe'
+
+                    scm {
+                        connection 'scm:git:git://github.com/bakdata/dedupe.git'
+                        developerConnection 'scm:git:ssh://github.com:bakdata/dedupe.git'
+                        url 'http://github.com/bakdata/dedupe/'
+                    }
+
+                    licenses {
+                        license {
+                            name 'MIT License'
+                            url 'http://www.opensource.org/licenses/mit-license.php'
+                        }
+                    }
+
+                    developers {
+                        developer {
+                            id 'AHeise'
+                            name 'Arvid Heise'
+                            email 'arvid..heise+maven@bakdata.com'
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+
+    task javadocJar(type: Jar) {
+        classifier = 'javadoc'
+        from javadoc
+    }
+
+    task sourcesJar(type: Jar) {
+        classifier = 'sources'
+        from sourceSets.main.allSource
+    }
+
+    artifacts {
+        archives javadocJar, sourcesJar
+    }
+
+    signing {
+        sign configurations.archives
+    }  
+}
+
 task jacocoMerge(type: JacocoMerge) {
     dependsOn subprojects.jacocoTestReport
 
@@ -70,9 +143,3 @@ task jacocoMerge(type: JacocoMerge) {
 }
 
 tasks.sonarqube.dependsOn(jacocoMerge)
-//jacocoTestReport {
-//    dependsOn jacocoMerge
-//    executionData = files(jacocoMerge.destinationFile)
-//    sourceDirectories = files(subprojects.sourceSets.main.java.sourceDirectories)
-//    classDirectories = files(subprojects.sourceSets.main.output)
-//}
